@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, chmodSync } from "fs";
 import { resolve, dirname } from "path";
 
 const __dirname = dirname(new URL(import.meta.url).pathname);
@@ -22,8 +22,52 @@ function escDQ(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-function escSQ(s: string): string {
-  return s.replace(/\\/g, "\\\\").replace(/'/g, "'\\''");
+// ---------------------------------------------------------------------------
+// JSON helpers for bash — printf + sed approach
+// ---------------------------------------------------------------------------
+
+// For mcp keys: printf a compact JSON template, sed-replace __PLACEHOLDER__
+function bashMcpBlock(key: any): string {
+  const prompt = escDQ(key.prompt);
+  const defaultFlag = key.defaultNo ? '"n"' : '"y"';
+  const template = JSON.stringify({
+    mcpServers: {
+      [key.write.serverId]: {
+        type: "http",
+        url: key.write.url,
+        headers: { [key.write.headerKey]: "__PLACEHOLDER__" },
+        directTools: true,
+      },
+    },
+  });
+  // We need to escape the template for printf, and use sed to swap in the value
+  const printfTemplate = template.replace(/'/g, "'\\''");
+  return `    if prompt_yn "${prompt}" ${defaultFlag}; then
+        read -rsp "  ${key.label} API key: " val
+        echo
+        escaped_val=$(printf '%s' "$val" | sed 's/[&/\\\\]/\\\\&/g')
+        printf '%s\\n' '${printfTemplate}' | sed "s/__PLACEHOLDER__/$escaped_val/g" > "$AGENT_DIR/mcp.json"
+        ok "${key.label} MCP configured."
+    fi`;
+}
+
+function bashAuthBlock(key: any): string {
+  const prompt = escDQ(key.prompt);
+  const defaultFlag = key.defaultNo ? '"n"' : '"y"';
+  const template = JSON.stringify({
+    [key.write.providerId]: {
+      type: key.write.authType,
+      key: "__PLACEHOLDER__",
+    },
+  });
+  const printfTemplate = template.replace(/'/g, "'\\''");
+  return `    if prompt_yn "${prompt}" ${defaultFlag}; then
+        read -rsp "  ${key.label} API key: " val
+        echo
+        escaped_val=$(printf '%s' "$val" | sed 's/[&/\\\\]/\\\\&/g')
+        printf '%s\\n' '${printfTemplate}' | sed "s/__PLACEHOLDER__/$escaped_val/g" > "$AGENT_DIR/auth.json"
+        ok "${key.label} key saved to auth.json."
+    fi`;
 }
 
 // ---------------------------------------------------------------------------
@@ -32,22 +76,17 @@ function escSQ(s: string): string {
 
 function generateBash(): string {
   const fileEntries = files
-    .map((f: string) => {
-      const basename = f.replace(/[/.-]/g, "_");
-      return `    pull_file "${f}" "\${AGENT_DIR}/${f}"`;
-    })
+    .map((f: string) => `    pull_file "${f}" "\${AGENT_DIR}/${f}"`)
     .join("\n");
 
-  const envKeyBlocks: string[] = [];
-  const mcpKeyBlocks: string[] = [];
-  const authKeyBlocks: string[] = [];
+  const keyBlocks: string[] = [];
 
   for (const key of apiKeys) {
     const defaultFlag = key.defaultNo ? '"n"' : '"y"';
     const prompt = escDQ(key.prompt);
 
     if (key.write.type === "env") {
-      envKeyBlocks.push(
+      keyBlocks.push(
         `    if prompt_yn "${prompt}" ${defaultFlag}; then
         read -rsp "  ${key.label} API key: " val
         echo
@@ -56,61 +95,11 @@ function generateBash(): string {
     fi`
       );
     } else if (key.write.type === "mcp") {
-      mcpKeyBlocks.push(
-        `    if prompt_yn "${prompt}" ${defaultFlag}; then
-        read -rsp "  ${key.label} API key: " val
-        echo
-        cat > "\${AGENT_DIR}/mcp.json" <<'MCPEOF'
-{
-  "mcpServers": {
-    "${key.write.serverId}": {
-      "type": "http",
-      "url": "${key.write.url}",
-      "headers": {
-        "${key.write.headerKey}": ""
-      },
-      "directTools": true
-    }
-  }
-}
-MCPEOF
-        # Inject the real key (JSON-safe)
-        python3 -c "
-import json, sys
-with open('\${AGENT_DIR}/mcp.json') as f: d = json.load(f)
-d['mcpServers']['${key.write.serverId}']['headers']['${key.write.headerKey}'] = '\${val}'
-with open('\${AGENT_DIR}/mcp.json','w') as f: json.dump(d, f, indent=2)
-" 2>/dev/null || sed -i.bak "s/\"${key.write.headerKey}\": \"\"/\"${key.write.headerKey}\": \"\${val}\"/" "\${AGENT_DIR}/mcp.json" && rm -f "\${AGENT_DIR}/mcp.json.bak"
-        ok "${key.label} MCP configured."
-    fi`
-      );
+      keyBlocks.push(bashMcpBlock(key));
     } else if (key.write.type === "auth") {
-      authKeyBlocks.push(
-        `    if prompt_yn "${prompt}" ${defaultFlag}; then
-        read -rsp "  ${key.label} API key: " val
-        echo
-        cat > "\${AGENT_DIR}/auth.json" <<AUTHEOF
-{
-  "${key.write.providerId}": {
-    "type": "${key.write.authType}",
-    "key": ""
-  }
-}
-AUTHEOF
-        # Inject the real key
-        python3 -c "
-import json, sys
-with open('\${AGENT_DIR}/auth.json') as f: d = json.load(f)
-d['${key.write.providerId}']['key'] = '\${val}'
-with open('\${AGENT_DIR}/auth.json','w') as f: json.dump(d, f, indent=2)
-" 2>/dev/null || sed -i.bak "s/\"key\": \"\"/\"key\": \"\${val}\"/" "\${AGENT_DIR}/auth.json" && rm -f "\${AGENT_DIR}/auth.json.bak"
-        ok "${key.label} key saved to auth.json."
-    fi`
-      );
+      keyBlocks.push(bashAuthBlock(key));
     }
   }
-
-  const allKeyBlocks = [...envKeyBlocks, ...mcpKeyBlocks, ...authKeyBlocks];
 
   const packageInstallCmds = packages
     .map((pkg: string) => `        pi package install ${pkg} || warn "Failed to install ${pkg}"`)
@@ -132,11 +121,11 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Pi Coding Agent — Custom Setup Installer
 # ---------------------------------------------------------------------------
-# ⚡  AUTO-GENERATED from manifest.json — do not edit by hand!
-#     Regenerate with:  bun run generate.ts
+# AUTO-GENERATED from manifest.json — do not edit by hand!
+# Regenerate with:  bun run generate.ts
 # ---------------------------------------------------------------------------
 # macOS / Linux:
-#   curl -fsSL https://raw.githubusercontent.com/pcstyle/my-pi-setup/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/pc-style/my-pi-setup/main/install.sh | bash
 # ---------------------------------------------------------------------------
 
 REPO_RAW="${repoRaw}"
@@ -196,7 +185,6 @@ install_pi() {
         exit 1
     fi
 
-    # Re-check
     if ! command -v pi &>/dev/null && ! command -v pi-coding-agent &>/dev/null; then
         if command -v npx &>/dev/null; then
             info "npx fallback available."
@@ -311,7 +299,7 @@ setup_api_keys() {
     local env_file="\${AGENT_DIR}/.env"
     : > "$env_file"
 
-${indent(allKeyBlocks.join("\n\n"), 4)}
+${indent(keyBlocks.join("\n\n"), 4)}
 }
 
 # ---------------------------------------------------------------------------
@@ -390,16 +378,14 @@ function generatePowerShell(): string {
     return `    Download-File '${f}' (${psPath})`;
   }).join("\n");
 
-  const envKeyBlocks: string[] = [];
-  const mcpKeyBlocks: string[] = [];
-  const authKeyBlocks: string[] = [];
+  const keyBlocks: string[] = [];
 
   for (const key of apiKeys) {
     const defaultNo = key.defaultNo ? "$false" : "$true";
     const prompt = key.prompt;
 
     if (key.write.type === "env") {
-      envKeyBlocks.push(
+      keyBlocks.push(
         `    if (Test-YesNo '${prompt}' ${defaultNo}) {
         $key = Read-Host '  ${key.label} API key'
         Add-Content -Path $envFile -Value "${key.write.variable}=$key"
@@ -407,7 +393,7 @@ function generatePowerShell(): string {
     }`
       );
     } else if (key.write.type === "mcp") {
-      mcpKeyBlocks.push(
+      keyBlocks.push(
         `    if (Test-YesNo '${prompt}' ${defaultNo}) {
         $key = Read-Host '  ${key.label} API key'
         $mcpJson = @{
@@ -425,7 +411,7 @@ function generatePowerShell(): string {
     }`
       );
     } else if (key.write.type === "auth") {
-      authKeyBlocks.push(
+      keyBlocks.push(
         `    if (Test-YesNo '${prompt}' ${defaultNo}) {
         $key = Read-Host '  ${key.label} API key'
         $authJson = @{
@@ -437,8 +423,6 @@ function generatePowerShell(): string {
       );
     }
   }
-
-  const allKeyBlocks = [...envKeyBlocks, ...mcpKeyBlocks, ...authKeyBlocks];
 
   const packageInstallCmds = packages.map((pkg: string) =>
     `        pi package install ${pkg} | Out-Host`
@@ -587,7 +571,7 @@ function Setup-ApiKeys {
     $envFile = Join-Path $AgentDir '.env'
     Set-Content -Path $envFile -Value ''
 
-${indent(allKeyBlocks.join("\n\n"), 4)}
+${indent(keyBlocks.join("\n\n"), 4)}
 }
 
 function Ensure-Bun {
@@ -682,8 +666,6 @@ const ps1Path = resolve(__dirname, "install.ps1");
 writeFileSync(shPath, bashOut, "utf-8");
 writeFileSync(ps1Path, ps1Out, "utf-8");
 
-// Make install.sh executable
-import { chmodSync } from "fs";
 chmodSync(shPath, 0o755);
 
 console.log(`Generated:`);
