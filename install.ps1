@@ -46,15 +46,15 @@ function Install-Pi {
 
     if (Test-Command bun) {
         Write-Info 'Using Bun...'
-        bun add -g @mariozechner/pi-coding-agent | Out-Host
+        bun add -g @earendil-works/pi-coding-agent | Out-Host
     }
     elseif (Test-Command pnpm) {
         Write-Info 'Using PNPM...'
-        pnpm add -g @mariozechner/pi-coding-agent | Out-Host
+        pnpm add -g @earendil-works/pi-coding-agent | Out-Host
     }
     elseif (Test-Command npm) {
         Write-Info 'Using NPM...'
-        npm install -g @mariozechner/pi-coding-agent | Out-Host
+        npm install -g @earendil-works/pi-coding-agent | Out-Host
     }
     else {
         throw 'No package manager found (tried bun, pnpm, npm). Install Bun or Node.js first.'

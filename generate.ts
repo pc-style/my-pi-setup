@@ -23,54 +23,6 @@ function escDQ(s: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// JSON helpers for bash — printf + sed approach
-// ---------------------------------------------------------------------------
-
-// For mcp keys: printf a compact JSON template, sed-replace __PLACEHOLDER__
-function bashMcpBlock(key: any): string {
-  const prompt = escDQ(key.prompt);
-  const defaultFlag = key.defaultNo ? '"n"' : '"y"';
-  const template = JSON.stringify({
-    mcpServers: {
-      [key.write.serverId]: {
-        type: "http",
-        url: key.write.url,
-        headers: { [key.write.headerKey]: "__PLACEHOLDER__" },
-        directTools: true,
-      },
-    },
-  });
-  // We need to escape the template for printf, and use sed to swap in the value
-  const printfTemplate = template.replace(/'/g, "'\\''");
-  return `    if prompt_yn "${prompt}" ${defaultFlag}; then
-        read -rsp "  ${key.label} API key: " val
-        echo
-        escaped_val=$(printf '%s' "$val" | sed 's/[&/\\\\]/\\\\&/g')
-        printf '%s\\n' '${printfTemplate}' | sed "s/__PLACEHOLDER__/$escaped_val/g" > "$AGENT_DIR/mcp.json"
-        ok "${key.label} MCP configured."
-    fi`;
-}
-
-function bashAuthBlock(key: any): string {
-  const prompt = escDQ(key.prompt);
-  const defaultFlag = key.defaultNo ? '"n"' : '"y"';
-  const template = JSON.stringify({
-    [key.write.providerId]: {
-      type: key.write.authType,
-      key: "__PLACEHOLDER__",
-    },
-  });
-  const printfTemplate = template.replace(/'/g, "'\\''");
-  return `    if prompt_yn "${prompt}" ${defaultFlag}; then
-        read -rsp "  ${key.label} API key: " val
-        echo
-        escaped_val=$(printf '%s' "$val" | sed 's/[&/\\\\]/\\\\&/g')
-        printf '%s\\n' '${printfTemplate}' | sed "s/__PLACEHOLDER__/$escaped_val/g" > "$AGENT_DIR/auth.json"
-        ok "${key.label} key saved to auth.json."
-    fi`;
-}
-
-// ---------------------------------------------------------------------------
 // Generate install.sh (Bash)
 // ---------------------------------------------------------------------------
 
@@ -88,16 +40,50 @@ function generateBash(): string {
     if (key.write.type === "env") {
       keyBlocks.push(
         `    if prompt_yn "${prompt}" ${defaultFlag}; then
-        read -rsp "  ${key.label} API key: " val
+        read_tty -rsp "  ${key.label} API key: " val
         echo
         echo "${key.write.variable}=\${val}" >> "\$env_file"
         ok "${key.label} key saved."
     fi`
       );
     } else if (key.write.type === "mcp") {
-      keyBlocks.push(bashMcpBlock(key));
+      const template = JSON.stringify({
+        mcpServers: {
+          [key.write.serverId]: {
+            type: "http",
+            url: key.write.url,
+            headers: { [key.write.headerKey]: "__PLACEHOLDER__" },
+            directTools: true,
+          },
+        },
+      });
+      const printfTemplate = template.replace(/'/g, "'\\''");
+      keyBlocks.push(
+        `    if prompt_yn "${prompt}" ${defaultFlag}; then
+        read_tty -rsp "  ${key.label} API key: " val
+        echo
+        escaped_val=$(printf '%s' "$val" | sed 's/[&/\\\\]/\\\\&/g')
+        printf '%s\\n' '${printfTemplate}' | sed "s/__PLACEHOLDER__/$escaped_val/g" > "$AGENT_DIR/mcp.json"
+        ok "${key.label} MCP configured."
+    fi`
+      );
     } else if (key.write.type === "auth") {
-      keyBlocks.push(bashAuthBlock(key));
+      const template = JSON.stringify({
+        [key.write.providerId]: {
+          type: key.write.authType,
+          key: "__PLACEHOLDER__",
+        },
+      });
+      const printfTemplate = template.replace(/'/g, "'\\''");
+      keyBlocks.push(
+        `    if prompt_yn "${prompt}" ${defaultFlag}; then
+        read_tty -rsp "  ${key.label} API key: " val
+        echo
+        escaped_val=$(printf '%s' "$val" | sed 's/[&/\\\\]/\\\\&/g')
+        printf '%s\\n' '${printfTemplate}' | sed "s/__PLACEHOLDER__/$escaped_val/g" > "$AGENT_DIR/auth.json"
+        ok "${key.label} key saved to auth.json."
+    fi`
+      );
     }
   }
 
@@ -131,7 +117,7 @@ set -euo pipefail
 REPO_RAW="${repoRaw}"
 PI_DIR="\${HOME}/.pi"
 AGENT_DIR="\${PI_DIR}/agent"
-BACKUP_DIR="\${PI_DIR}.bak/$(date +%Y%m%d_%H%M%S)"
+BACKUP_DIR="\${PI_DIR}.bak/\$(date +%Y%m%d_%H%M%S)"
 
 CYAN='\\033[0;36m'
 GREEN='\\033[0;32m'
@@ -145,16 +131,22 @@ ok()    { echo -e "\${GREEN}[OK]\${RESET} $*"; }
 warn()  { echo -e "\${YELLOW}[WARN]\${RESET} $*"; }
 err()   { echo -e "\${RED}[ERR]\${RESET} $*" >&2; }
 
+# Read from the controlling terminal so prompts work even when
+# stdin is a pipe (e.g. curl ... | bash).
+read_tty() {
+    read "$@" < /dev/tty 2>/dev/null
+}
+
 prompt_yn() {
     local msg="$1"
     local default="\${2:-y}"
     local ans
     while true; do
         if [[ "$default" == "y" ]]; then
-            read -rp "\${msg} [Y/n]: " ans
+            read_tty -rp "\${msg} [Y/n]: " ans || return 0
             ans=\${ans:-Y}
         else
-            read -rp "\${msg} [y/N]: " ans
+            read_tty -rp "\${msg} [y/N]: " ans || return 1
             ans=\${ans:-N}
         fi
         case "$ans" in
@@ -172,13 +164,13 @@ install_pi() {
 
     if command -v bun &>/dev/null; then
         info "Using Bun..."
-        bun add -g @mariozechner/pi-coding-agent || true
+        bun add -g @earendil-works/pi-coding-agent || true
     elif command -v pnpm &>/dev/null; then
         info "Using PNPM..."
-        pnpm add -g @mariozechner/pi-coding-agent || true
+        pnpm add -g @earendil-works/pi-coding-agent || true
     elif command -v npm &>/dev/null; then
         info "Using NPM..."
-        npm install -g @mariozechner/pi-coding-agent || true
+        npm install -g @earendil-works/pi-coding-agent || true
     else
         err "No package manager found (tried: bun, pnpm, npm)."
         err "Please install Bun or Node.js first, then re-run this installer."
@@ -429,7 +421,6 @@ function generatePowerShell(): string {
   ).join("\n");
 
   const bunPushPop = bunInstallDirs.map((dir: string) => {
-    const dirLabel = dir === "." ? "agent root" : dir;
     const fullPath = dir === "." ? "$AgentDir" : `Join-Path $AgentDir '${dir}'`;
     return `        if (Test-Path (Join-Path ${fullPath} 'package.json')) {
             Push-Location ${fullPath}
@@ -486,15 +477,15 @@ function Install-Pi {
 
     if (Test-Command bun) {
         Write-Info 'Using Bun...'
-        bun add -g @mariozechner/pi-coding-agent | Out-Host
+        bun add -g @earendil-works/pi-coding-agent | Out-Host
     }
     elseif (Test-Command pnpm) {
         Write-Info 'Using PNPM...'
-        pnpm add -g @mariozechner/pi-coding-agent | Out-Host
+        pnpm add -g @earendil-works/pi-coding-agent | Out-Host
     }
     elseif (Test-Command npm) {
         Write-Info 'Using NPM...'
-        npm install -g @mariozechner/pi-coding-agent | Out-Host
+        npm install -g @earendil-works/pi-coding-agent | Out-Host
     }
     else {
         throw 'No package manager found (tried bun, pnpm, npm). Install Bun or Node.js first.'

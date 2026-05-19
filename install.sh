@@ -28,16 +28,22 @@ ok()    { echo -e "${GREEN}[OK]${RESET} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${RESET} $*"; }
 err()   { echo -e "${RED}[ERR]${RESET} $*" >&2; }
 
+# Read from the controlling terminal so prompts work even when
+# stdin is a pipe (e.g. curl ... | bash).
+read_tty() {
+    read "$@" < /dev/tty 2>/dev/null
+}
+
 prompt_yn() {
     local msg="$1"
     local default="${2:-y}"
     local ans
     while true; do
         if [[ "$default" == "y" ]]; then
-            read -rp "${msg} [Y/n]: " ans
+            read_tty -rp "${msg} [Y/n]: " ans || return 0
             ans=${ans:-Y}
         else
-            read -rp "${msg} [y/N]: " ans
+            read_tty -rp "${msg} [y/N]: " ans || return 1
             ans=${ans:-N}
         fi
         case "$ans" in
@@ -55,13 +61,13 @@ install_pi() {
 
     if command -v bun &>/dev/null; then
         info "Using Bun..."
-        bun add -g @mariozechner/pi-coding-agent || true
+        bun add -g @earendil-works/pi-coding-agent || true
     elif command -v pnpm &>/dev/null; then
         info "Using PNPM..."
-        pnpm add -g @mariozechner/pi-coding-agent || true
+        pnpm add -g @earendil-works/pi-coding-agent || true
     elif command -v npm &>/dev/null; then
         info "Using NPM..."
-        npm install -g @mariozechner/pi-coding-agent || true
+        npm install -g @earendil-works/pi-coding-agent || true
     else
         err "No package manager found (tried: bun, pnpm, npm)."
         err "Please install Bun or Node.js first, then re-run this installer."
@@ -251,14 +257,14 @@ setup_api_keys() {
     : > "$env_file"
 
         if prompt_yn "Set up Firecrawl API key? (used by firecrawl-search extension)" "n"; then
-            read -rsp "  Firecrawl API key: " val
+            read_tty -rsp "  Firecrawl API key: " val
             echo
             echo "FIRECRAWL_API_KEY=${val}" >> "$env_file"
             ok "Firecrawl key saved."
         fi
 
         if prompt_yn "Set up Context7 MCP API key? (documentation lookup)" "n"; then
-            read -rsp "  Context7 API key: " val
+            read_tty -rsp "  Context7 API key: " val
             echo
             escaped_val=$(printf '%s' "$val" | sed 's/[&/\\]/\\&/g')
             printf '%s\n' '{"mcpServers":{"context7":{"type":"http","url":"https://mcp.context7.com/mcp","headers":{"CONTEXT7_API_KEY":"__PLACEHOLDER__"},"directTools":true}}}' | sed "s/__PLACEHOLDER__/$escaped_val/g" > "$AGENT_DIR/mcp.json"
@@ -266,7 +272,7 @@ setup_api_keys() {
         fi
 
         if prompt_yn "Set up OpenCode-Go API key? (default provider in this setup)" "n"; then
-            read -rsp "  OpenCode-Go API key: " val
+            read_tty -rsp "  OpenCode-Go API key: " val
             echo
             escaped_val=$(printf '%s' "$val" | sed 's/[&/\\]/\\&/g')
             printf '%s\n' '{"opencode-go":{"type":"api_key","key":"__PLACEHOLDER__"}}' | sed "s/__PLACEHOLDER__/$escaped_val/g" > "$AGENT_DIR/auth.json"

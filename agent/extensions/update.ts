@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const LATEST_VERSION_URL = "https://pi.dev/api/latest-version";
 const VERSION_PATTERN = /\d+(?:\.\d+)+(?:[-+][\w.-]+)?/;
