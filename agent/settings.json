@@ -1,0 +1,44 @@
+{
+  "lastChangelogVersion": "0.75.3",
+  "defaultProvider": "opencode-go",
+  "defaultModel": "qwen3.6-plus",
+  "hideThinkingBlock": false,
+  "defaultThinkingLevel": "medium",
+  "enabledModels": [
+    "openai-codex/gpt-5.5",
+    "openai-codex/gpt-5.4-mini-fast",
+    "opencode-go/glm-5.1",
+    "opencode-go/kimi-k2.6",
+    "opencode-go/qwen3.6-plus",
+    "opencode-go/deepseek-v4-flash",
+    "opencode-go/deepseek-v4-pro",
+    "opencode-go/mimo-v2.5-pro",
+    "github-copilot/gpt-5.4-mini"
+  ],
+  "packages": [
+    "npm:@dreki-gg/pi-questionnaire",
+    "npm:@tintinweb/pi-subagents",
+    "npm:@dreki-gg/pi-plan-mode"
+  ],
+  "collapseChangelog": true,
+  "theme": "dark",
+  "quietStartup": true,
+  "warnings": {
+    "anthropicExtraUsage": true
+  },
+  "showHardwareCursor": true,
+  "extensionsManagerDisabledPackages": [
+    "npm:@dreki-gg/pi-context7"
+  ],
+  "steeringMode": "all",
+  "enableInstallTelemetry": false,
+  "doubleEscapeAction": "fork",
+  "treeFilterMode": "default",
+  "compaction": {
+    "enabled": true
+  },
+  "terminal": {
+    "showTerminalProgress": true
+  },
+  "followUpMode": "all"
+}

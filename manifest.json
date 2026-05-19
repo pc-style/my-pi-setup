@@ -1,0 +1,118 @@
+{
+  "repoRaw": "https://raw.githubusercontent.com/pc-style/my-pi-setup/main",
+  "files": [
+    "AGENTS.md",
+    "settings.json",
+    "models.json",
+    "package.json",
+    "bun.lock",
+    ".env.example",
+    "themes/github-dark-default.json",
+    ".firecrawl/pi-conventions.json",
+    ".firecrawl/pi-packages.json",
+    ".firecrawl/pi-skillforge.json",
+    ".firecrawl/pi-skillful.json",
+    "extensions/cache-health.ts",
+    "extensions/context-quarantine.ts",
+    "extensions/context.ts",
+    "extensions/copy-all.ts",
+    "extensions/diff.ts",
+    "extensions/firecrawl-search.ts",
+    "extensions/flow-title.ts",
+    "extensions/git-status-widget.ts",
+    "extensions/lg.ts",
+    "extensions/openai-codex-fast-mode.ts",
+    "extensions/tps-tracker.ts",
+    "extensions/update.ts",
+    "extensions/usage.ts",
+    "extensions/yeet.ts",
+    "extensions/zsh-user-bash.ts",
+    "extensions/ephemeral/apply.ts",
+    "extensions/ephemeral/catalog.ts",
+    "extensions/ephemeral/index.ts",
+    "extensions/ephemeral/manifest.ts",
+    "extensions/ephemeral/mcp.ts",
+    "extensions/ephemeral/preview.ts",
+    "extensions/ephemeral/project-state.ts",
+    "extensions/ephemeral/types.ts",
+    "extensions/ephemeral/ui.ts",
+    "extensions/ephemeral/util.ts",
+    "extensions/pi-mcp/package.json",
+    "extensions/pi-mcp/cli.js",
+    "extensions/pi-mcp/pnpm-lock.yaml",
+    "extensions/pi-mcp/src/app-bridge.bundle.js",
+    "extensions/pi-mcp/src/commands.ts",
+    "extensions/pi-mcp/src/config.ts",
+    "extensions/pi-mcp/src/consent-manager.ts",
+    "extensions/pi-mcp/src/direct-tools.ts",
+    "extensions/pi-mcp/src/errors.ts",
+    "extensions/pi-mcp/src/glimpse-ui.ts",
+    "extensions/pi-mcp/src/host-html-template.ts",
+    "extensions/pi-mcp/src/index.ts",
+    "extensions/pi-mcp/src/init.ts",
+    "extensions/pi-mcp/src/lifecycle.ts",
+    "extensions/pi-mcp/src/logger.ts",
+    "extensions/pi-mcp/src/mcp-auth.ts",
+    "extensions/pi-mcp/src/mcp-oauth-callback.ts",
+    "extensions/pi-mcp/src/mcp-oauth-provider.ts",
+    "extensions/pi-mcp/src/mcp-panel.ts",
+    "extensions/pi-mcp/src/metadata-cache.ts",
+    "extensions/pi-mcp/src/npx-resolver.ts",
+    "extensions/pi-mcp/src/proxy-modes.ts",
+    "extensions/pi-mcp/src/resource-tools.ts",
+    "extensions/pi-mcp/src/server-manager.ts",
+    "extensions/pi-mcp/src/state.ts",
+    "extensions/pi-mcp/src/tool-metadata.ts",
+    "extensions/pi-mcp/src/tool-registrar.ts",
+    "extensions/pi-mcp/src/types.ts",
+    "extensions/pi-mcp/src/ui-resource-handler.ts",
+    "extensions/pi-mcp/src/ui-server.ts",
+    "extensions/pi-mcp/src/ui-session.ts",
+    "extensions/pi-mcp/src/ui-stream-types.ts",
+    "extensions/pi-mcp/src/utils.ts"
+  ],
+  "apiKeys": [
+    {
+      "id": "firecrawl",
+      "label": "Firecrawl",
+      "prompt": "Set up Firecrawl API key? (used by firecrawl-search extension)",
+      "defaultNo": true,
+      "write": {
+        "type": "env",
+        "variable": "FIRECRAWL_API_KEY"
+      }
+    },
+    {
+      "id": "context7",
+      "label": "Context7",
+      "prompt": "Set up Context7 MCP API key? (documentation lookup)",
+      "defaultNo": true,
+      "write": {
+        "type": "mcp",
+        "serverId": "context7",
+        "url": "https://mcp.context7.com/mcp",
+        "headerKey": "CONTEXT7_API_KEY"
+      }
+    },
+    {
+      "id": "opencode-go",
+      "label": "OpenCode-Go",
+      "prompt": "Set up OpenCode-Go API key? (default provider in this setup)",
+      "defaultNo": true,
+      "write": {
+        "type": "auth",
+        "providerId": "opencode-go",
+        "authType": "api_key"
+      }
+    }
+  ],
+  "packages": [
+    "@dreki-gg/pi-questionnaire",
+    "@tintinweb/pi-subagents",
+    "@dreki-gg/pi-plan-mode"
+  ],
+  "bunInstallDirs": [
+    ".",
+    "extensions/pi-mcp"
+  ]
+}

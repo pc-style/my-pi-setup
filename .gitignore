@@ -1,0 +1,12 @@
+# Generated / local-only Pi files
+agent/auth.json
+agent/.env
+agent/mcp.json
+agent/sessions/
+agent/node_modules/
+agent/.pi/
+agent/.firecrawl/cache/
+
+# OS junk
+.DS_Store
+Thumbs.db
